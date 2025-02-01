@@ -200,6 +200,7 @@ class LightFM(object):
         user_alpha=0.0,
         max_sampled=10,
         random_state=None,
+        fit_callback=None
     ):
 
         assert item_alpha >= 0.0
@@ -238,7 +239,15 @@ class LightFM(object):
         else:
             self.random_state = np.random.RandomState(random_state)
 
+        if fit_callback is None:
+            self._fit_callback = self._deafault_fit_callback
+        else:
+            self._fit_callback = fit_callback
+
         self._reset_state()
+
+    def _deafault_fit_callback(self, epoch: int, epoch_len: int, time: float) -> None:
+        return 
 
     def _reset_state(self):
 
@@ -476,17 +485,13 @@ class LightFM(object):
         # Use `tqdm` if available,
         # otherwise fallback to `range()`.
         if not verbose:
-            return range(n)
-
-        try:
             from tqdm import trange
 
             return trange(n, desc="Epoch")
-        except ImportError:
+        else:
 
             def verbose_range():
                 for i in range(n):
-                    print("Epoch {}".format(i))
                     yield i
 
             return verbose_range()
@@ -651,7 +656,9 @@ class LightFM(object):
         if num_threads < 1:
             raise ValueError("Number of threads must be 1 or larger.")
 
-        for _ in self._progress(epochs, verbose=verbose):
+        import time
+        for epoch_num in self._progress(epochs, verbose=verbose):
+            s = time.time()
             self._run_epoch(
                 item_features,
                 user_features,
@@ -660,7 +667,7 @@ class LightFM(object):
                 num_threads,
                 self.loss,
             )
-
+            self._fit_callback(epoch_num, epochs, time.time() - s)
             self._check_finite()
 
         return self
